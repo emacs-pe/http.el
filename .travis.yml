@@ -1,0 +1,5 @@
+language: generic
+script: bash -ex .travis-ci.sh
+env:
+  - EMACS=emacs24
+  - EMACS=emacs-snapshot

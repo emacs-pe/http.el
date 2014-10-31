@@ -1,0 +1,71 @@
+# -*- http -*-
+
+# In the following examples move the cursor to somewhere inside the body of the
+# request and execute `M-x http-process' or press `C-c C-c'
+
+GET https://httpbin.org/ip
+GET http://localhost:9200/_settings
+
+## Sending headers:
+POST https://httpbin.org/post?foo=bar
+User-Agent: Emacs24
+
+## Sending data:
+# To send the data in the body of the request it's necessary to separate of the
+# headers by a new line.
+POST https://httpbin.org/post?val=key
+User-Agent: Emacs24
+Content-Type: application/json
+
+{
+  "foo": "bar"
+}
+
+## Extra Examples:
+
+# Creating a gist:
+# https://developer.github.com/v3/gists/#create-a-gist
+POST https://api.github.com/gists
+Accept: application/vnd.github.v3+json
+User-Agent: Emacs24
+
+{
+  "description": "test",
+  "public": false,
+  "files": {
+    "file1.txt": {
+      "content": "Created with http.el"
+    }
+  }
+}
+
+# Indexing a document to Elasticsearch
+PUT http://localhost:9200/megacorp/employee/1?pretty
+
+{
+  "first_name": "John",
+  "last_name": "Smith",
+  "age": 25,
+  "about": "I love to go rock climbing",
+  "interests": [
+    "sports",
+    "music"
+  ]
+}
+
+# Elasticsearch Bulk Indexing
+# http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/docs-bulk.html
+POST http://localhost:9200/_bulk?pretty
+
+{ "index" : { "_index" : "test", "_type" : "type1", "_id" : "1" } }
+{ "field1" : "value1" }
+{ "delete" : { "_index" : "test", "_type" : "type1", "_id" : "2" } }
+{ "create" : { "_index" : "test", "_type" : "type1", "_id" : "3" } }
+{ "field1" : "value3" }
+{ "update" : {"_id" : "1", "_type" : "type1", "_index" : "index1", "_retry_on_conflict": 3} }
+{ "doc" : {"field2" : "value2"} }
+
+# Elasticsearch cat apis
+# http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/cat.html
+GET http://localhost:9200/_cat/indices?v
+GET http://localhost:9200/_cat/health?v

@@ -1,0 +1,5 @@
+*~
+*.elc
+.cask
+elpa
+make-readme-markdown.el
