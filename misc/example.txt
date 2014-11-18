@@ -1,10 +1,14 @@
 # -*- http -*-
+## Setup:
+# 1. Install http.el
+# 2. Set `http-mode` as major mode.
 
-# In the following examples move the cursor to somewhere inside the body of the
-# request and execute `M-x http-process' or press `C-c C-c'
-
+## Usage:
+# Move the cursor somewhere within the description of the http request and
+# execute `M-x http-process` or press `C-c C-c`, if everything is went
+# well should show an buffer when the response of the http request.
 GET https://httpbin.org/ip
-GET http://localhost:9200/_settings
+GET https://httpbin.org/xml
 
 ## Sending headers:
 POST https://httpbin.org/post?foo=bar

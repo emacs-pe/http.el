@@ -6,11 +6,26 @@
 
 `http.el` provides an easy way to interact with the HTTP protocol.
 
-### Examples
+### Usage
 
+Create a file with the following contents, and set `http-mode` as major mode.
+
+    # -*- http -*-
+
+    POST https://httpbin.org/post?val=key
+    User-Agent: Emacs24
+    Content-Type: application/json
+
+    {
+      "foo": "bar"
+    }
+
+Move the cursor somewhere within the description of the http request and
+execute `M-x http-process` or press `C-c C-c`, if everything is went
+well should show an buffer when the response of the http request:
 ![http.el screenshot](misc/screenshot.png)
 
-See: [misc/example.txt](misc/example.txt)
+More examples are included in file [misc/example.txt](misc/example.txt)
 
 ### TODO
 
