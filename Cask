@@ -1,9 +1,6 @@
-(package "http.el" "0.0.1" "An HTTP client for Emacs.")
+(package-file "http.el")
 
 (source melpa)
-
-(depends-on "s")
-(depends-on "request")
 
 (development
  (depends-on "ert")
