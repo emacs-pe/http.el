@@ -141,7 +141,7 @@
     (or (and (re-search-forward (concat "^#\\|" http-keywords-regexp) nil t) (point-at-bol))
         (point-max))))
 
-(defun* http-callback (&key data response error-thrown &allow-other-keys)
+(cl-defun http-callback (&key data response error-thrown &allow-other-keys)
   (with-current-buffer (get-buffer-create http-buffer-response-name)
     (erase-buffer)
     (when error-thrown
