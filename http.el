@@ -137,6 +137,11 @@
   :type 'boolean
   :group 'http)
 
+(defcustom http-show-response-headers-top nil
+  "If non nil inserts response headers at the top."
+  :type 'boolean
+  :group 'http)
+
 (defcustom http-fallback-comment-start "//"
   "Fallback string used as `comment-start'.
 
@@ -272,11 +277,13 @@ Used for pretty print a JSON reponse.")
                   (funcall pretty-callback))
              (and (fboundp guessed-mode) (funcall guessed-mode)))))
     (when http-show-response-headers
+      (goto-char (if http-show-response-headers-top (point-min) (point-max)))
       (let ((hstart (point))
             (raw-header (request-response--raw-header response))
             (comment-start (or comment-start http-fallback-comment-start)))
         (unless (string= "" raw-header)
-          (insert "\n" raw-header)
+          (or http-show-response-headers-top (insert "\n"))
+          (insert raw-header)
           (comment-region hstart (point)))))
     (display-buffer (current-buffer))))
 
