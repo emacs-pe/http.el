@@ -1,0 +1,21 @@
+# -*- http -*-
+
+# You can set a local variable `http-hostname` to make default the
+# hostname.
+#
+# You can go to each line and press `C-c C-c` to process an http
+# request
+
+GET /
+GET /ip
+GET /robots.txt
+GET /humans.txt
+GET /user-agent
+GET /get?key=λ
+GET /get?show_env=1
+GET /encoding/utf8
+POST /post?show_env=1
+
+# Local Variables:
+# http-hostname: "https://httpbin.org/"
+# End:
