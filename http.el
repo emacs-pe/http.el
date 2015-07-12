@@ -1,4 +1,4 @@
-;;; http.el --- An HTTP client for Emacs -*- lexical-binding: t -*-
+;;; http.el --- Yet another HTTP client              -*- lexical-binding: t; -*-
 
 ;; Copyright © 2014 Mario Rodas <marsam@users.noreply.github.com>
 
@@ -6,7 +6,7 @@
 ;; URL: https://github.com/emacs-pe/http.el
 ;; Keywords: convenience
 ;; Version: 0.0.1
-;; Package-Requires: ((emacs "24") (cl-lib "0.5") (s "1.9.0") (request "0.2.0"))
+;; Package-Requires: ((emacs "24.4") (cl-lib "0.5") (request "0.2.0"))
 
 ;; This file is NOT part of GNU Emacs.
 
@@ -46,6 +46,7 @@
 ;; Move the cursor somewhere within the description of the http request and
 ;; execute `M-x http-process` or press `C-c C-c`, if everything is went
 ;; well should show an buffer when the response of the http request:
+;;
 ;; ![http.el screenshot](misc/screenshot.png)
 ;;
 ;; More examples are included in file [misc/example.txt](misc/example.txt)
@@ -59,17 +60,18 @@
 
 ;;; Code:
 
-(eval-when-compile (require 'cl-lib))
+(eval-when-compile
+  (require 'cl-lib)
+  (require 'subr-x))
 
 (require 'json)
+(require 'outline)
+(require 'request)
 (require 'rfc2231)
 (require 'url-util)
 
-(require 's)
-(require 'request)
-
 (defgroup http nil
-  "HTTP client for Emacs."
+  "Yet another HTTP client."
   :prefix "http-"
   :group 'applications)
 
@@ -83,21 +85,48 @@
   :type 'boolean
   :group 'http)
 
-(defcustom http-response-comment-start "//"
-  "String used as `comment-start' when was not possible to guess a response content-type."
+(defcustom http-fallback-comment-start "//"
+  "Fallback string used as `comment-start'.
+
+Used only when was not possible to guess a response content-type."
   :type 'string
   :group 'http)
 
-(defconst http-methods-list
-  '("GET" "POST" "DELETE" "PUT" "HEAD" "OPTIONS" "PATCH"))
+(defvar-local http-hostname nil
+  "Default hostname used when url is an endpoint.")
+(put 'http-hostname 'safe-local-variable 'stringp)
 
-(defconst http-keywords-regexp
-  (concat "^\\s-*" (regexp-opt http-methods-list 'words)))
+(defvar http-methods-list
+  '("GET" "POST" "DELETE" "PUT" "HEAD" "OPTIONS" "PATCH")
+  "List of http methods.")
+
+(defconst http-mode-outline-regexp
+  (regexp-opt http-methods-list))
+
+(defconst http-mode-outline-regexp-alist
+  (mapcar (lambda (method) (cons method 1)) http-methods-list))
+
+(defconst http-request-line-regexp
+  (rx-to-string `(: line-start
+                    (group (or symbol-start ,@http-methods-list symbol-end))
+                    (+ space)
+                    (group (* any) (not (in "\n" blank))))
+                t))
+
+(defconst http-mode-imenu-generic-expression
+  (mapcar (lambda (method)
+            (list method
+                  (rx-to-string `(: line-start ,method (+ space) (group (* any) (not (in "\n" blank)))) t)
+                  1))
+          http-methods-list))
 
 (defconst http-header-regexp
-  "^\\([A-Za-z0-9_-]+\\):[ ]*\\(.*\\)")
+  (rx line-start (group (+ (in "_-" alnum))) ":" (* space) (group (+ any) (not blank))))
 
-(defconst http-content-type-alist
+(defconst http-header-body-sep-regexp
+  (rx line-start (* blank) line-end))
+
+(defvar http-content-type-mode-alist
   '(("text/xml" . xml-mode)
     ("application/xml" . xml-mode)
     ("application/atom+xml" . xml-mode)
@@ -108,7 +137,20 @@
     ("image/gif" . image-mode)
     ("image/png" . image-mode)
     ("image/jpeg" . image-mode)
-    ("image/x-icon" . image-mode)))
+    ("image/x-icon" . image-mode))
+  "Mapping between 'content-type' and a Emacs mode.
+
+Used to fontify the response buffer and comment the response headers.")
+
+(defvar http-pretty-callback-alist
+  '(("application/json" . http-json-print-buffer))
+  "Mapping between 'content-type' and a pretty callback.")
+
+(defvar http-json-pretty-special-chars
+  (remq (assq ?/ json-special-chars) json-special-chars)
+  "Same as `json-special-chars' but without the ?/ character.
+
+Used for pretty print a JSON reponse.")
 
 (defun http-query-alist (query)
   "Return an alist of QUERY string."
@@ -117,29 +159,41 @@
 
 (defun http-parse-headers (start end)
   "Return the parsed http headers from START to END point."
-  (let* ((hlines (split-string (buffer-substring-no-properties start end) "\n"))
+  (let* ((hdrlines (split-string (buffer-substring-no-properties start end) "\n"))
          (header-alist (mapcar (lambda (hdrline)
-                                 (when (string-match http-header-regexp hdrline)
-                                   (cons
-                                    (downcase (match-string 1 hdrline))
-                                    (match-string 2 hdrline))))
-                               hlines)))
+                                 (and (string-match http-header-regexp hdrline)
+                                      (cons (downcase (match-string 1 hdrline))
+                                            (match-string 2 hdrline))))
+                               hdrlines)))
     (remove nil header-alist)))
 
 (defun http-capture-headers-and-body (start end)
   "Return a list of the form `(header body)` with the captured valued from START to END point."
-  (let* ((sep-point (save-excursion (goto-char start) (re-search-forward "^\\s-*$" end t)))
+  (let* ((sep-point (save-excursion (goto-char start) (re-search-forward http-header-body-sep-regexp end t)))
          (headers (http-parse-headers start (or sep-point end)))
-         (body (and sep-point (buffer-substring-no-properties sep-point end))))
+         (body (and sep-point (string-trim (buffer-substring-no-properties sep-point end)))))
     (list headers body)))
 
 (defun http-end-parameters (&optional start)
   "Locate the end of request body from START point."
   (save-excursion
-    (when start (goto-char start))
+    (and start (goto-char start))
     (end-of-line)
-    (or (and (re-search-forward (concat "^#\\|" http-keywords-regexp) nil t) (point-at-bol))
+    (or (and (re-search-forward (concat "^#\\|" http-request-line-regexp) nil t) (1- (point-at-bol)))
         (point-max))))
+
+(defun http-json-pretty-encode-char (char)
+  "Encode CHAR as a JSON string."
+  (setq char (json-encode-char0 char 'ucs))
+  (let ((control-char (car (rassoc char http-json-pretty-special-chars))))
+    (if control-char
+        (format "\\%c" control-char) ;; Special JSON character (\n, \r, etc.).
+      (format "%c" char))))
+
+(defun http-json-print-buffer ()
+  "Pretty print json buffer."
+  (cl-letf (((symbol-function 'json-encode-char) #'http-json-pretty-encode-char))
+    (json-pretty-print-buffer)))
 
 (cl-defun http-callback (&key data response error-thrown &allow-other-keys)
   (with-current-buffer (get-buffer-create http-buffer-response-name)
@@ -148,28 +202,26 @@
       (message "Error: %s" error-thrown))
     (let* ((ctype-header (request-response-header response "content-type"))
            (ctype-list (and ctype-header (rfc2231-parse-string ctype-header)))
-           (guessed-mode (cdr (assoc (car ctype-list) http-content-type-alist)))
            (charset (cdr (assq 'charset (cdr ctype-list))))
-           (coding-system (and charset (intern (downcase charset)))))
+           (coding-system (and charset (intern (downcase charset))))
+           (ctype-name (car ctype-list))
+           (guessed-mode (cdr (assoc ctype-name http-content-type-mode-alist)))
+           (pretty-callback (cdr (assoc ctype-name http-pretty-callback-alist))))
       (cond ((eq guessed-mode 'image-mode)
              (fundamental-mode)
-             ;;; TODO: Somehow the curl backend of `request.el' mess this up.
+             ;; TODO: Somehow the curl backend of `request.el' mess this up.
              (insert-image (create-image data (image-type-from-data data) t)))
             (t
-             (when (stringp data)
-               (insert data))
-             (when coding-system
-               (set-buffer-file-coding-system coding-system))
-             (cond ((eq guessed-mode 'js-mode)
-                    (when (and (fboundp 'json-pretty-print-buffer) (/= 0 (buffer-size)))
-                      (json-pretty-print-buffer))
-                    (js-mode))
-                   ((fboundp guessed-mode)
-                    (funcall guessed-mode))))))
+             (and (stringp data) (insert data))
+             (and coding-system (set-buffer-file-coding-system coding-system))
+             (and (functionp pretty-callback)
+                  (not (zerop (buffer-size)))
+                  (funcall pretty-callback))
+             (and (fboundp guessed-mode) (funcall guessed-mode)))))
     (when http-show-response-headers
       (let ((hstart (point))
             (raw-header (request-response--raw-header response))
-            (comment-start (or comment-start http-response-comment-start)))
+            (comment-start (or comment-start http-fallback-comment-start)))
         (unless (string= "" raw-header)
           (insert "\n" raw-header)
           (comment-region hstart (point)))))
@@ -179,29 +231,27 @@
 (defun http-process ()
   "Process a http request."
   (interactive)
-  (save-excursion
-    (let* ((start (save-excursion (end-of-line) (re-search-backward (concat http-keywords-regexp "\\(.*\\)$"))))
-           (type (buffer-substring-no-properties (match-beginning 1) (match-end 1)))
-           (url (s-trim (buffer-substring-no-properties (match-beginning 2) (match-end 2))))
-           (urlobj (url-generic-parse-url url))
-           (end (http-end-parameters start))
-           (headers)
-           (data))
-      (cl-multiple-value-setq (headers data) (http-capture-headers-and-body start end))
-      (let* ((path-and-query (url-path-and-query urlobj))
-             (path (car path-and-query))
-             (query (cdr path-and-query))
-             (params (and query (http-query-alist query))))
-        ;; XXX: remove the querystring to make it compatible with request.el
-        (setf (url-filename urlobj) path)
-        (request (url-recreate-url urlobj)
-                 :type type
-                 :params params
-                 :data data
-                 :headers headers
-                 :parser 'buffer-string
-                 :success 'http-callback
-                 :error 'http-callback)))))
+  (let* ((start (save-excursion (end-of-line) (re-search-backward http-request-line-regexp)))
+         (type (match-string-no-properties 1))
+         (endpoint (match-string-no-properties 2))
+         (url (if (and http-hostname (file-name-absolute-p endpoint)) (url-expand-file-name endpoint http-hostname) endpoint))
+         (urlobj (url-generic-parse-url url))
+         (end (http-end-parameters start))
+         (path-and-query (url-path-and-query urlobj))
+         (path (car path-and-query))
+         (query (cdr path-and-query))
+         (params (and query (http-query-alist query))))
+    ;; XXX: remove the query string to make it compatible with `request.el'
+    (setf (url-filename urlobj) path)
+    (cl-multiple-value-bind (headers data) (http-capture-headers-and-body start end)
+      (request (url-recreate-url urlobj)
+               :type type
+               :params params
+               :data data
+               :headers headers
+               :parser 'buffer-string
+               :success 'http-callback
+               :error 'http-callback))))
 
 (defvar http-mode-syntax-table
   (let ((table (make-syntax-table)))
@@ -211,21 +261,34 @@
   "Syntax table for http mode files.")
 
 (defvar http-font-lock-keywords
-  (regexp-opt (append http-methods-list)))
+  `((,http-request-line-regexp
+     (1 font-lock-keyword-face)
+     (2 font-lock-function-name-face))
+    (,http-header-regexp
+     (1 font-lock-variable-name-face)
+     (2 font-lock-string-face))))
 
-(defun http-font-lock-keywords ()
-  `((,http-keywords-regexp . font-lock-keyword-face)
-    (,http-header-regexp 1 font-lock-builtin-face)
-    (,http-header-regexp 2 font-lock-constant-face)))
+(defvar http-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "C-c C-c") 'http-process)
+    (define-key map (kbd "C-c C-n") 'outline-next-heading)
+    (define-key map (kbd "C-c C-p") 'outline-previous-heading)
+    (define-key map (kbd "C-c C-t") 'outline-toggle-children)
+    map))
 
 ;;;###autoload
 (define-derived-mode http-mode prog-mode "HTTP Client"
-  "Major mode for HTTP client."
+  "Major mode for HTTP client.
+
+\\{http-mode-map}"
+  :syntax-table http-mode-syntax-table
+  (setq outline-regexp http-mode-outline-regexp
+        outline-heading-alist http-mode-outline-regexp-alist
+        imenu-generic-expression http-mode-imenu-generic-expression)
   (set (make-local-variable 'comment-start) "# ")
   (set (make-local-variable 'comment-start-skip) "#+\\s-*")
-  (local-set-key (kbd "C-c C-c") 'http-process)
-  (setq font-lock-defaults '((http-font-lock-keywords)))
-  (set-syntax-table http-mode-syntax-table))
+  (set (make-local-variable 'font-lock-defaults) '(http-font-lock-keywords))
+  (imenu-add-to-menubar "Contents"))
 
 (provide 'http)
 
