@@ -68,10 +68,6 @@ content equal to "application/json", say [json-reformat][]:
 
 + [ ] Add code block support for org-mode
 
-Related projects
-+ [httprepl.el](https://github.com/gregsexton/httprepl.el): An HTTP REPL for Emacs.
-+ [restclient.el](https://github.com/pashky/restclient.el): HTTP REST client tool for Emacs.
-
 
 ---
 Converted from `http.el` by [*el2markdown*](https://github.com/Lindydancer/el2markdown).

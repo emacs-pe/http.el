@@ -6,7 +6,7 @@
 ;; URL: https://github.com/emacs-pe/http.el
 ;; Keywords: convenience
 ;; Version: 0.0.1
-;; Package-Requires: ((emacs "24.4") (cl-lib "0.5") (request "0.2.0"))
+;; Package-Requires: ((emacs "24") (cl-lib "0.5") (request "0.2.0"))
 
 ;; This file is NOT part of GNU Emacs.
 
@@ -91,21 +91,36 @@
 ;;
 ;; + [ ] Add code block support for org-mode
 
-;;; Related projects
-;; + [httprepl.el](https://github.com/gregsexton/httprepl.el): An HTTP REPL for Emacs.
-;; + [restclient.el](https://github.com/pashky/restclient.el): HTTP REST client tool for Emacs.
-
 ;;; Code:
 
 (eval-when-compile
   (require 'cl-lib)
-  (require 'subr-x))
+  (require 'subr-x nil 'noerror))
 
 (require 'json)
 (require 'outline)
 (require 'request)
 (require 'rfc2231)
 (require 'url-util)
+
+(eval-and-compile
+  ;; `string-trim' from `subr-x' for Emacs 24.3 and bellow
+  (unless (featurep 'subr-x)
+    (defsubst string-trim-left (string)
+      "Remove leading whitespace from STRING."
+      (if (string-match "\\`[ \t\n\r]+" string)
+          (replace-match "" t t string)
+        string))
+
+    (defsubst string-trim-right (string)
+      "Remove trailing whitespace from STRING."
+      (if (string-match "[ \t\n\r]+\\'" string)
+          (replace-match "" t t string)
+        string))
+
+    (defsubst string-trim (string)
+      "Remove leading and trailing whitespace from STRING."
+      (string-trim-left (string-trim-right string)))))
 
 (defgroup http nil
   "Yet another HTTP client."
@@ -229,8 +244,9 @@ Used for pretty print a JSON reponse.")
 
 (defun http-json-print-buffer ()
   "Pretty print json buffer."
-  (cl-letf (((symbol-function 'json-encode-char) #'http-json-pretty-encode-char))
-    (json-pretty-print-buffer)))
+  (and (fboundp 'json-pretty-print-buffer)
+       (cl-letf (((symbol-function 'json-encode-char) #'http-json-pretty-encode-char))
+         (json-pretty-print-buffer))))
 
 (cl-defun http-callback (&key data response error-thrown &allow-other-keys)
   (with-current-buffer (get-buffer-create http-buffer-response-name)
