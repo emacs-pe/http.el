@@ -104,23 +104,11 @@
 (require 'url-util)
 
 (eval-and-compile
-  ;; `string-trim' from `subr-x' for Emacs 24.3 and bellow
-  (unless (featurep 'subr-x)
-    (defsubst string-trim-left (string)
-      "Remove leading whitespace from STRING."
-      (if (string-match "\\`[ \t\n\r]+" string)
-          (replace-match "" t t string)
-        string))
-
-    (defsubst string-trim-right (string)
-      "Remove trailing whitespace from STRING."
-      (if (string-match "[ \t\n\r]+\\'" string)
-          (replace-match "" t t string)
-        string))
-
-    (defsubst string-trim (string)
-      "Remove leading and trailing whitespace from STRING."
-      (string-trim-left (string-trim-right string)))))
+  ;; `string-blank-p' from `subr-x' for Emacs 24.3 and bellow
+  (unless (fboundp 'string-blank-p)
+    (defsubst string-blank-p (string)
+      "Check whether STRING is either empty or only whitespace."
+      (string-match-p "\\`[ \t\n\r]*\\'" string))))
 
 (defgroup http nil
   "Yet another HTTP client."
@@ -228,7 +216,8 @@ Used for pretty print a JSON reponse.")
   "Return a list of the form `(header body)` with the captured valued from START to END point."
   (let* ((sep-point (save-excursion (goto-char start) (re-search-forward http-header-body-sep-regexp end t)))
          (headers (http-parse-headers start (or sep-point end)))
-         (body (and sep-point (string-trim (buffer-substring-no-properties sep-point end)))))
+         (rest (and sep-point (buffer-substring-no-properties sep-point end)))
+         (body (and rest (not (string-blank-p rest)) rest)))
     (list headers body)))
 
 (defun http-end-parameters (&optional start)
