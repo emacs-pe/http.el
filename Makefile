@@ -1,32 +1,37 @@
 CASK  ?= cask
 WGET  ?= wget
-EMACS ?= emacs
-BATCH  = $(EMACS) --batch -Q -L .
-BATCHC = $(BATCH) -f batch-byte-compile
+EMACS  = emacs
 
-ELS  = http.el
-ELCS = $(ELS:.el=.elc)
+EMACSFLAGS =
+EMACSBATCH = $(EMACS) --batch -Q $(EMACSFLAGS)
 
-.PHONY: all
-all: lisp README.md
+export EMACS
 
-.PHONY: lisp
-lisp: elpa $(ELCS)
+PKGDIR := $(shell EMACS=$(EMACS) $(CASK) package-directory)
 
-elpa: Cask
-	$(CASK) install
-	touch $@
+SRCS = http.el
+OBJS = $(SRCS:.el=.elc)
 
-%.elc: %.el
-	$(CASK) exec $(BATCHC) $<
+.PHONY: all compile clean
 
-README.md: make-readme-markdown.el $(ELS)
-	$(CASK) exec $(BATCH) --script $< <$(ELS) >$@ 2>/dev/null
+all: compile README.md
 
-make-readme-markdown.el:
-	$(WGET) -q -O $@ "https://raw.github.com/mgalgs/make-readme-markdown/master/make-readme-markdown.el"
-
-.INTERMEDIATE: make-readme-markdown.el
+compile: $(OBJS)
 
 clean:
-	$(RM) $(ELCS)
+	$(RM) $(OBJS)
+
+%.elc: %.el $(PKGDIR)
+	$(CASK) exec $(EMACSBATCH) -f batch-byte-compile $<
+
+$(PKGDIR) : Cask
+	$(CASK) install
+	touch $(PKGDIR)
+
+README.md: el2markdown.el $(SRCS)
+	$(CASK) exec $(EMACSBATCH) -l $< $(SRCS) -f el2markdown-write-readme
+
+el2markdown.el:
+	$(WGET) -q -O $@ "https://github.com/Lindydancer/el2markdown/raw/master/el2markdown.el"
+
+.INTERMEDIATE: el2markdown.el

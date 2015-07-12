@@ -1,7 +1,8 @@
-(package-file "http.el")
-
+(source gnu)
 (source melpa)
+
+(package-file "http.el")
 
 (development
  (depends-on "ert")
- (depends-on "flycheck-cask"))
+ (depends-on "undercover"))
