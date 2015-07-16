@@ -236,8 +236,10 @@ Used for pretty print a JSON reponse.")
         (format "\\%c" control-char) ;; Special JSON character (\n, \r, etc.).
       (format "%c" char))))
 
+;;;###autoload
 (defun http-json-print-buffer ()
   "Pretty print json buffer."
+  (interactive)
   (and (fboundp 'json-pretty-print-buffer)
        (cl-letf (((symbol-function 'json-encode-char) #'http-json-pretty-encode-char))
          (json-pretty-print-buffer))))
@@ -334,6 +336,7 @@ Used for pretty print a JSON reponse.")
   (setq outline-regexp http-mode-outline-regexp
         outline-heading-alist http-mode-outline-regexp-alist
         imenu-generic-expression http-mode-imenu-generic-expression)
+  (add-to-invisibility-spec '(outline . t))
   (set (make-local-variable 'comment-start) "# ")
   (set (make-local-variable 'comment-start-skip) "#+\\s-*")
   (set (make-local-variable 'font-lock-defaults) '(http-font-lock-keywords))
