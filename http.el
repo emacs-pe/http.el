@@ -6,7 +6,7 @@
 ;; URL: https://github.com/emacs-pe/http.el
 ;; Keywords: convenience
 ;; Version: 0.0.1
-;; Package-Requires: ((emacs "24") (cl-lib "0.5") (request "0.2.0"))
+;; Package-Requires: ((emacs "24.4") (request "0.2.0"))
 
 ;; This file is NOT part of GNU Emacs.
 
@@ -95,20 +95,13 @@
 
 (eval-when-compile
   (require 'cl-lib)
-  (require 'subr-x nil 'noerror))
+  (require 'subr-x)
+  (require 'outline))
 
 (require 'json)
-(require 'outline)
 (require 'request)
 (require 'rfc2231)
 (require 'url-util)
-
-(eval-and-compile
-  ;; `string-blank-p' from `subr-x' for Emacs 24.3 and bellow
-  (unless (fboundp 'string-blank-p)
-    (defsubst string-blank-p (string)
-      "Check whether STRING is either empty or only whitespace."
-      (string-match-p "\\`[ \t\n\r]*\\'" string))))
 
 (defgroup http nil
   "Yet another HTTP client."
@@ -217,7 +210,7 @@ Used for pretty print a JSON reponse.")
   (let* ((sep-point (save-excursion (goto-char start) (re-search-forward http-header-body-sep-regexp end t)))
          (headers (http-parse-headers start (or sep-point end)))
          (rest (and sep-point (buffer-substring-no-properties sep-point end)))
-         (body (and rest (not (string-blank-p rest)) rest)))
+         (body (and rest (not (string-blank-p rest)) (string-trim rest))))
     (list headers body)))
 
 (defun http-end-parameters (&optional start)
