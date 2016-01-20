@@ -98,7 +98,6 @@
   (require 'subr-x)
   (require 'outline))
 
-(require 'json)
 (require 'request)
 (require 'rfc2231)
 (require 'url-util)
@@ -169,7 +168,9 @@ Used only when was not possible to guess a response content-type."
     ("application/xml" . xml-mode)
     ("application/atom+xml" . xml-mode)
     ("application/atomcat+xml" . xml-mode)
+    ("application/x-javascript" . js-mode)
     ("application/json" . js-mode)
+    ("text/javascript" . js-mode)
     ("text/html" . html-mode)
     ("text/plain" . text-mode)
     ("image/gif" . image-mode)
@@ -180,15 +181,12 @@ Used only when was not possible to guess a response content-type."
 
 Used to fontify the response buffer and comment the response headers.")
 
+(declare-function json-pretty-print-buffer "json")
+
+;; XXX: Emacs<25 doesn't escapes the slash character https://github.com/emacs-mirror/emacs/commit/58c8605
 (defvar http-pretty-callback-alist
-  '(("application/json" . http-json-print-buffer))
+  '(("application/json" . json-pretty-print-buffer))
   "Mapping between 'content-type' and a pretty callback.")
-
-(defvar http-json-pretty-special-chars
-  (remq (assq ?/ json-special-chars) json-special-chars)
-  "Same as `json-special-chars' but without the ?/ character.
-
-Used for pretty print a JSON reponse.")
 
 (defun http-query-alist (query)
   "Return an alist of QUERY string."
@@ -220,22 +218,6 @@ Used for pretty print a JSON reponse.")
     (end-of-line)
     (or (and (re-search-forward (concat "^#\\|" http-request-line-regexp) nil t) (1- (point-at-bol)))
         (point-max))))
-
-(defun http-json-pretty-encode-char (char)
-  "Encode CHAR as a JSON string."
-  (setq char (json-encode-char0 char 'ucs))
-  (let ((control-char (car (rassoc char http-json-pretty-special-chars))))
-    (if control-char
-        (format "\\%c" control-char) ;; Special JSON character (\n, \r, etc.).
-      (format "%c" char))))
-
-;;;###autoload
-(defun http-json-print-buffer ()
-  "Pretty print json buffer."
-  (interactive)
-  (and (fboundp 'json-pretty-print-buffer)
-       (cl-letf (((symbol-function 'json-encode-char) #'http-json-pretty-encode-char))
-         (json-pretty-print-buffer))))
 
 (cl-defun http-callback (&key data response error-thrown &allow-other-keys)
   (with-current-buffer (get-buffer-create http-buffer-response-name)
