@@ -26,7 +26,6 @@
 ;; Boston, MA 02110-1301, USA.
 
 ;;; Commentary:
-;; [![Travis build status](https://travis-ci.org/emacs-pe/http.el.png?branch=master)](https://travis-ci.org/emacs-pe/http.el)
 ;;
 ;; `http.el' provides an easy way to interact with the HTTP protocol.
 ;;
@@ -45,27 +44,36 @@
 ;;     }
 ;;
 ;; Move the cursor somewhere within the description of the http request and
-;; execute `M-x http-process` or press `C-c C-c`, if everything is went
+;; execute `M-x http-process` or press <kdb>C-c C-c</kbd>, if everything is went
 ;; well should show an buffer when the response of the http request:
 ;;
 ;; ![http.el screenshot](misc/screenshot.png)
 ;;
 ;; More examples are included in file [misc/example.txt](misc/example.txt)
+
+;; Customization:
 ;;
-;; Customisation:
+;; Fontify response:
 ;;
-;; If you want to use a custom mode for rendering a response with
-;; content-type equal to "application/json", say [json-mode][]:
+;; If you want to use a custom mode for the fontification of the response buffer
+;; with content-type equal to `http-content-type-mode-alist'.  For example, to
+;; use [json-mode][] for responses with content-type "application/json":
 ;;
 ;;     (add-to-list 'http-content-type-mode-alist
 ;;                  '("application/json" . json-mode))
 ;;
-;; If you want to use a custom prettify function for a response with
-;; content equal to "application/json", say [json-reformat][]:
+;; Prettify response:
+;;
+;; If you want to use a custom function to prettify the response body you need
+;; to add it to `http-pretty-callback-alist', the function is called without
+;; arguments.  For example, to use [json-reformat][] for responses with
+;; content-type "application/json":
 ;;
 ;;     (require 'json-reformat)
+;;
 ;;     (defun my/pretty-json-buffer ()
 ;;       (json-reformat-region (point-min) (point-max)))
+;;
 ;;     (add-to-list 'http-pretty-callback-alist
 ;;                  '("application/json" . my/pretty-json-buffer))
 
@@ -73,9 +81,8 @@
 ;;
 ;; + [httprepl.el][]: An HTTP REPL for Emacs.
 ;;
-;; + [restclient.el][]: HTTP REST client tool for Emacs. You can use
-;;   both projects indistinctly, the main differences between both
-;;   are:
+;; + [restclient.el][]: HTTP REST client tool for Emacs.  You can use both
+;;   projects indistinctly, the main differences between both are:
 ;;
 ;;              | `restclient.el'   | `http.el'
 ;;   ---------- | ----------------- | -------------
@@ -84,8 +91,8 @@
 ;;
 ;; [httprepl.el]: https://github.com/gregsexton/httprepl.el "An HTTP REPL for Emacs"
 ;; [restclient.el]: https://github.com/pashky/restclient.el "HTTP REST client tool for Emacs"
+;; [json-mode]: https://github.com/joshwnj/json-mode "Major mode for editing JSON files with Emacs"
 ;; [json-reformat]: https://github.com/gongo/json-reformat "Reformat tool for JSON"
-;; [json-mode]: https://github.com/joshwnj/json-mode "Major mode for editing JSON files with emacs"
 
 ;; TODO:
 ;;
@@ -122,6 +129,12 @@
   :type 'boolean
   :group 'http)
 
+(defcustom http-prettify-response t
+  "If non nil inserts response headers at the top."
+  :type 'boolean
+  :safe 'booleanp
+  :group 'http)
+
 (defcustom http-fallback-comment-start "//"
   "Fallback string used as `comment-start'.
 
@@ -129,9 +142,11 @@ Used only when was not possible to guess a response content-type."
   :type 'string
   :group 'http)
 
+;;;###autoload
 (defvar-local http-hostname nil
   "Default hostname used when url is an endpoint.")
-(put 'http-hostname 'safe-local-variable 'stringp)
+;;;###autoload
+(put 'http-hostname 'safe-local-variable #'stringp)
 
 (defvar http-methods-list
   '("GET" "POST" "DELETE" "PUT" "HEAD" "OPTIONS" "PATCH")
@@ -221,63 +236,117 @@ Used to fontify the response buffer and comment the response headers.")
 
 (cl-defun http-callback (&key data response error-thrown &allow-other-keys)
   (with-current-buffer (get-buffer-create http-buffer-response-name)
-    (erase-buffer)
-    (when error-thrown
-      (message "Error: %s" error-thrown))
-    (let* ((ctype-header (request-response-header response "content-type"))
-           (ctype-list (and ctype-header (rfc2231-parse-string ctype-header)))
-           (charset (cdr (assq 'charset (cdr ctype-list))))
-           (coding-system (and charset (intern (downcase charset))))
-           (ctype-name (car ctype-list))
-           (guessed-mode (cdr (assoc ctype-name http-content-type-mode-alist)))
-           (pretty-callback (cdr (assoc ctype-name http-pretty-callback-alist))))
-      (cond ((eq guessed-mode 'image-mode)
-             (fundamental-mode)
-             ;; TODO: Somehow the curl backend of `request.el' mess this up.
-             (insert-image (create-image data (image-type-from-data data) t)))
-            (t
-             (and (stringp data) (insert data))
-             (and coding-system (set-buffer-file-coding-system coding-system))
-             (and (functionp pretty-callback)
-                  (not (zerop (buffer-size)))
-                  (funcall pretty-callback))
-             (and (fboundp guessed-mode) (funcall guessed-mode)))))
-    (when http-show-response-headers
-      (goto-char (if http-show-response-headers-top (point-min) (point-max)))
-      (let ((hstart (point))
-            (raw-header (request-response--raw-header response))
-            (comment-start (or comment-start http-fallback-comment-start)))
-        (unless (string= "" raw-header)
-          (or http-show-response-headers-top (insert "\n"))
-          (insert raw-header)
-          (comment-region hstart (point)))))
+    (let ((inhibit-read-only t))
+      (erase-buffer)
+      (and error-thrown (message (error-message-string error-thrown)))
+      (let* ((ctype-header (request-response-header response "content-type"))
+             (ctype-list (and ctype-header (rfc2231-parse-string ctype-header)))
+             (charset (cdr (assq 'charset (cdr ctype-list))))
+             (coding-system (and charset (intern (downcase charset))))
+             (ctype-name (car ctype-list))
+             (guessed-mode (assoc-default ctype-name http-content-type-mode-alist))
+             (pretty-callback (assoc-default ctype-name http-pretty-callback-alist)))
+        (if (eq guessed-mode 'image-mode)
+            (let* ((data-p t)
+                   (data (string-make-unibyte data))
+                   (type (if (fboundp 'imagemagick-types)
+                             'imagemagick
+                           (image-type data nil data-p)))
+                   (image (create-image data type data-p)))
+              (insert-image image))
+          (when (stringp data)
+            (let ((text (if http-prettify-response (http-prettify-text data pretty-callback) data)))
+              (insert (http-fontify-text text guessed-mode))))
+          (and coding-system (set-buffer-file-coding-system coding-system))))
+      (when http-show-response-headers
+        (goto-char (if http-show-response-headers-top (point-min) (point-max)))
+        (let ((hstart (point))
+              (raw-header (request-response--raw-header response)))
+          (unless (string-empty-p raw-header)
+            (or http-show-response-headers-top (insert "\n"))
+            (insert raw-header)
+            (let ((comment-start (or comment-start http-fallback-comment-start)))
+              (comment-region hstart (point)))
+            (put-text-property hstart (point) 'face 'font-lock-comment-face))))
+      (http-response-mode))
+    (goto-char (point-min))
     (display-buffer (current-buffer))))
+
+(defun http-prettify-text (text object)
+  "Prettify using TEXT using calling OBJECT in a temporal buffer."
+  (if (not (functionp object))
+      text
+    (with-temp-buffer
+      (erase-buffer)
+      (insert text)
+      (funcall object)
+      (buffer-string))))
+
+;; Stolen from `ansible-doc'.
+(defun http-fontify-text (text mode)
+  "Add `font-lock-face' properties to TEXT using MODE.
+
+Return a fontified copy of TEXT."
+  ;; Graciously inspired by http://emacs.stackexchange.com/a/5408/227
+  (if (not (fboundp mode))
+      text
+    (with-temp-buffer
+      (erase-buffer)
+      (insert text)
+      ;; Run mode without any hooks
+      (delay-mode-hooks
+        (funcall mode)
+        (font-lock-mode))
+      (if (fboundp 'font-lock-ensure)
+          (font-lock-ensure)
+        (with-no-warnings
+          ;; Suppress warning about non-interactive use of
+          ;; `font-lock-fontify-buffer' in Emacs 25.
+          (font-lock-fontify-buffer)))
+      ;; Convert `face' to `font-lock-face' to play nicely with font lock
+      (goto-char (point-min))
+      (while (not (eobp))
+        (let ((pos (point)))
+          (goto-char (next-single-property-change pos 'face nil (point-max)))
+          (put-text-property pos (point) 'font-lock-face
+                             (get-text-property pos 'face))))
+      (buffer-string))))
+
+(defun http-capture ()
+  "Capture a http request.
+
+Return a list of the form: \(URL TYPE PARAMS DATA HEADERS\)"
+  (interactive)
+  (let* ((start (save-excursion (end-of-line) (re-search-backward http-request-line-regexp)))
+         (type (match-string-no-properties 1))
+         (endpoint (match-string-no-properties 2))
+         (url (if (and http-hostname (not (string-match-p url-nonrelative-link endpoint)))
+                  (url-expand-file-name endpoint http-hostname)
+                endpoint))
+         (urlobj (url-generic-parse-url url))
+         (end (http-end-parameters start)))
+    (cl-destructuring-bind (path . query)
+        (url-path-and-query urlobj)
+      (let ((params (and query (http-query-alist query))))
+        ;; XXX: remove the query string to make it compatible with `request.el'
+        (setf (url-filename urlobj) path)
+        (cl-multiple-value-bind (headers data) (http-capture-headers-and-body start end)
+          (list (url-recreate-url urlobj) type params data headers))))))
 
 ;;;###autoload
 (defun http-process ()
   "Process a http request."
   (interactive)
-  (let* ((start (save-excursion (end-of-line) (re-search-backward http-request-line-regexp)))
-         (type (match-string-no-properties 1))
-         (endpoint (match-string-no-properties 2))
-         (url (if (and http-hostname (file-name-absolute-p endpoint)) (url-expand-file-name endpoint http-hostname) endpoint))
-         (urlobj (url-generic-parse-url url))
-         (end (http-end-parameters start))
-         (path-and-query (url-path-and-query urlobj))
-         (path (car path-and-query))
-         (query (cdr path-and-query))
-         (params (and query (http-query-alist query))))
-    ;; XXX: remove the query string to make it compatible with `request.el'
-    (setf (url-filename urlobj) path)
-    (cl-multiple-value-bind (headers data) (http-capture-headers-and-body start end)
-      (request (url-recreate-url urlobj)
-               :type type
-               :params params
-               :data data
-               :headers headers
-               :parser 'buffer-string
-               :success 'http-callback
-               :error 'http-callback))))
+  (cl-multiple-value-bind (url type params data headers)
+      (http-capture)
+    (request url
+             :type type
+             :params params
+             :data data
+             :headers headers
+             :parser 'buffer-string
+             :success 'http-callback
+             :error 'http-callback)))
 
 (defvar http-mode-syntax-table
   (let ((table (make-syntax-table)))
@@ -303,19 +372,26 @@ Used to fontify the response buffer and comment the response headers.")
     map))
 
 ;;;###autoload
-(define-derived-mode http-mode prog-mode "HTTP Client"
+(define-derived-mode http-mode text-mode "HTTP Client"
   "Major mode for HTTP client.
 
 \\{http-mode-map}"
-  :syntax-table http-mode-syntax-table
-  (setq outline-regexp http-mode-outline-regexp
-        outline-heading-alist http-mode-outline-regexp-alist
-        imenu-generic-expression http-mode-imenu-generic-expression)
+  (setq-local comment-start "# ")
+  (setq-local comment-start-skip "#+\\s-*")
+  (setq-local font-lock-defaults '(http-font-lock-keywords))
+  (setq outline-regexp http-mode-outline-regexp)
+  (setq outline-heading-alist http-mode-outline-regexp-alist)
+  (setq imenu-generic-expression http-mode-imenu-generic-expression)
   (add-to-invisibility-spec '(outline . t))
-  (set (make-local-variable 'comment-start) "# ")
-  (set (make-local-variable 'comment-start-skip) "#+\\s-*")
-  (set (make-local-variable 'font-lock-defaults) '(http-font-lock-keywords))
   (imenu-add-to-menubar "Contents"))
+
+;;;###autoload
+(define-derived-mode http-response-mode special-mode "HTTP Response"
+  "Major mode for HTTP responses from `http-mode'
+
+\\{http-response-mode-map}"
+  (setq buffer-read-only t
+        buffer-auto-save-file-name nil))
 
 (provide 'http)
 
