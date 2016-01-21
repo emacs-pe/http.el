@@ -227,8 +227,13 @@ Used to fontify the response buffer and comment the response headers.")
          (body (and rest (not (string-blank-p rest)) (string-trim rest))))
     (list headers body)))
 
-(defun http-end-parameters (&optional start)
-  "Locate the end of request body from START point."
+(defun http-start-definition ()
+  "Locate the start of the HTTP request definition."
+  (or (save-excursion (end-of-line) (re-search-backward http-request-line-regexp nil t))
+      (user-error "HTTP request definition not found")))
+
+(defun http-end-definition (&optional start)
+  "Locate the end of the HTTP request definition from START point."
   (save-excursion
     (and start (goto-char start))
     (end-of-line)
@@ -314,19 +319,28 @@ Return a fontified copy of TEXT."
                              (get-text-property pos 'face))))
       (buffer-string))))
 
+(defun http-nav-beginning-of-defun ()
+  "Move point to the beginning of a HTTP request definition."
+  (end-of-line)
+  (goto-char (http-start-definition)))
+
+(defun http-nav-end-of-defun ()
+  "Move point to the end of a HTTP request definition."
+  (goto-char (http-end-definition)))
+
 (defun http-capture ()
   "Capture a http request.
 
 Return a list of the form: \(URL TYPE PARAMS DATA HEADERS\)"
   (interactive)
-  (let* ((start (save-excursion (end-of-line) (re-search-backward http-request-line-regexp)))
-         (type (match-string-no-properties 1))
-         (endpoint (match-string-no-properties 2))
+  (let* ((start (http-start-definition))
+         (type (match-string 1))
+         (endpoint (match-string 2))
          (url (if (and http-hostname (not (string-match-p url-nonrelative-link endpoint)))
                   (url-expand-file-name endpoint http-hostname)
                 endpoint))
          (urlobj (url-generic-parse-url url))
-         (end (http-end-parameters start)))
+         (end (http-end-definition start)))
     (cl-destructuring-bind (path . query)
         (url-path-and-query urlobj)
       (let ((params (and query (http-query-alist query))))
@@ -336,9 +350,11 @@ Return a list of the form: \(URL TYPE PARAMS DATA HEADERS\)"
           (list (url-recreate-url urlobj) type params data headers))))))
 
 ;;;###autoload
-(defun http-process ()
-  "Process a http request."
-  (interactive)
+(defun http-process (&optional arg)
+  "Process a http request.
+
+If ARG is non-nil executes the request synchronously."
+  (interactive "P")
   (cl-multiple-value-bind (url type params data headers)
       (http-capture)
     (request url
@@ -346,6 +362,7 @@ Return a list of the form: \(URL TYPE PARAMS DATA HEADERS\)"
              :params params
              :data data
              :headers headers
+             :sync arg
              :parser 'buffer-string
              :success 'http-callback
              :error 'http-callback)))
@@ -381,6 +398,8 @@ Return a list of the form: \(URL TYPE PARAMS DATA HEADERS\)"
   (setq-local comment-start "# ")
   (setq-local comment-start-skip "#+\\s-*")
   (setq-local font-lock-defaults '(http-font-lock-keywords))
+  (setq-local beginning-of-defun-function #'http-nav-beginning-of-defun)
+  (setq-local end-of-defun-function #'http-nav-end-of-defun)
   (setq outline-regexp http-mode-outline-regexp)
   (setq outline-heading-alist http-mode-outline-regexp-alist)
   (setq imenu-generic-expression http-mode-imenu-generic-expression)
