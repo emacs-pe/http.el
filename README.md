@@ -20,7 +20,7 @@ Create a file with the following contents, and set `http-mode` as major mode.
     }
 
 Move the cursor somewhere within the description of the http request and
-execute `M-x http-process` or press <kdb>C-c C-c</kbd>, if everything is went
+execute `M-x http-process` or press <kbd>C-c C-c</kbd>, if everything is went
 well should show an buffer when the response of the http request:
 
 ![http.el screenshot](misc/screenshot.png)
@@ -42,8 +42,9 @@ use [json-mode][] for responses with content-type "application/json":
 
 If you want to use a custom function to prettify the response body you need
 to add it to `http-pretty-callback-alist`, the function is called without
-arguments.  For example, to use [json-reformat][] for responses with
-content-type "application/json":
+arguments.  Examples:
+
++ To use [json-reformat][] in responses with content-type "application/json":
 
         (require 'json-reformat)
 
@@ -52,6 +53,16 @@ content-type "application/json":
 
         (add-to-list 'http-pretty-callback-alist
                      '("application/json" . my/pretty-json-buffer))
+
++ To display the rendered html in responses with content-type "text/html":
+
+        (require 'shr)
+
+        (defun my/http-display-html ()
+          (shr-render-region (point-min) (point-max)))
+
+        (add-to-list 'http-pretty-callback-alist
+                     '("text/html" . my/http-display-html))
 
 ## Related projects
 
