@@ -10,6 +10,20 @@
 GET https://httpbin.org/ip
 GET https://httpbin.org/xml
 
+# Text
+GET http://www.ietf.org/rfc/rfc4627.txt
+
+# Encoding
+GET https://httpbin.org/encoding/utf8
+GET https://www.google.de/
+
+# Images
+GET https://httpbin.org/image/png
+GET https://httpbin.org/image/svg
+
+# Redirects
+GET https://httpbin.org/redirect/3
+
 ## Sending headers:
 POST https://httpbin.org/post?foo=bar
 User-Agent: Emacs24

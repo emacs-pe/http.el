@@ -191,14 +191,15 @@ Used only when was not possible to guess a response content-type."
     ("image/gif" . image-mode)
     ("image/png" . image-mode)
     ("image/jpeg" . image-mode)
-    ("image/x-icon" . image-mode))
+    ("image/x-icon" . image-mode)
+    ("image/svg+xml" . image-mode))
   "Mapping between 'content-type' and a Emacs mode.
 
 Used to fontify the response buffer and comment the response headers.")
 
 (declare-function json-pretty-print-buffer "json")
 
-;; XXX: Emacs<25 doesn't escapes the slash character https://github.com/emacs-mirror/emacs/commit/58c8605
+;; XXX: Emacs<25 incorrectly escapes the slash character https://github.com/emacs-mirror/emacs/commit/58c8605
 (defvar http-pretty-callback-alist
   '(("application/json" . json-pretty-print-buffer))
   "Mapping between 'content-type' and a pretty callback.")
@@ -255,15 +256,16 @@ Used to fontify the response buffer and comment the response headers.")
                    (image (create-image data type data-p)))
               (insert-image image))
           (when (stringp data)
-            (let ((text (if http-prettify-response (http-prettify-text data pretty-callback) data)))
-              (insert (http-fontify-text text guessed-mode))))
-          (and coding-system (set-buffer-file-coding-system coding-system))))
+            (setq data (decode-coding-string data (or coding-system 'utf-8)))
+            (let* ((text (if http-prettify-response (http-prettify-text data pretty-callback) data))
+                   (fontified (http-fontify-text text guessed-mode)))
+              (insert fontified)))))
       (when http-show-response-headers
         (goto-char (if http-show-response-headers-top (point-min) (point-max)))
+        (or http-show-response-headers-top (insert "\n"))
         (let ((hstart (point))
               (raw-header (request-response--raw-header response)))
           (unless (string-empty-p raw-header)
-            (or http-show-response-headers-top (insert "\n"))
             (insert raw-header)
             (let ((comment-start (or comment-start http-fallback-comment-start)))
               (comment-region hstart (point)))
