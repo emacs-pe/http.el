@@ -425,6 +425,9 @@ If ARG is non-nil executes the request synchronously."
   (setq buffer-read-only t
         buffer-auto-save-file-name nil))
 
+;;;###autoload
+(add-to-list 'auto-mode-alist '("\\.http\\'" . http-mode))
+
 (provide 'http)
 
 ;;; http.el ends here
