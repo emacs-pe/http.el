@@ -171,20 +171,21 @@ Used only when was not possible to guess a response content-type."
 
 (defconst http-request-line-regexp
   (rx-to-string `(: line-start
-                    (group (or symbol-start ,@http-methods-list symbol-end))
+                    (group (or ,@http-methods-list))
                     (+ space)
-                    (group (* any) (not (in "\n" blank))))
+                    (group (+ not-newline))
+                    line-end)
                 t))
 
 (defconst http-mode-imenu-generic-expression
   (mapcar (lambda (method)
             (list method
-                  (rx-to-string `(: line-start ,method (+ space) (group (* any) (not (in "\n" blank)))) t)
+                  (rx-to-string `(: line-start ,method (+ space) (group (+ not-newline))) t)
                   1))
           http-methods-list))
 
 (defconst http-header-regexp
-  (rx line-start (group (+ (in "_-" alnum))) ":" (* space) (group (+ any) (not blank))))
+  (rx line-start (group (+ (in "_-" alnum))) ":" (* space) (group (+ not-newline)) line-end))
 
 (defconst http-header-body-sep-regexp
   (rx line-start (* blank) line-end))
@@ -408,9 +409,9 @@ If ARG is non-nil executes the request synchronously."
 \\{http-mode-map}"
   (setq-local comment-start "# ")
   (setq-local comment-start-skip "#+\\s-*")
-  (setq-local font-lock-defaults '(http-font-lock-keywords))
   (setq-local beginning-of-defun-function #'http-nav-beginning-of-defun)
   (setq-local end-of-defun-function #'http-nav-end-of-defun)
+  (setq font-lock-defaults '(http-font-lock-keywords))
   (setq outline-regexp http-mode-outline-regexp)
   (setq outline-heading-alist http-mode-outline-regexp-alist)
   (setq imenu-generic-expression http-mode-imenu-generic-expression)
