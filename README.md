@@ -3,7 +3,7 @@
 *Author:* Mario Rodas <marsam@users.noreply.github.com><br>
 *Version:* 0.0.1<br>
 
-`http.el` provides an easy way to interact with the HTTP protocol.
+`http` provides an easy way to interact with the HTTP protocol.
 
 ## Usage
 

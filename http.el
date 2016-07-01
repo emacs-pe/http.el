@@ -27,7 +27,7 @@
 
 ;;; Commentary:
 ;;
-;; `http.el' provides an easy way to interact with the HTTP protocol.
+;; `http' provides an easy way to interact with the HTTP protocol.
 ;;
 ;; Usage:
 ;;
@@ -297,6 +297,10 @@ Used to fontify the response buffer and comment the response headers.")
     (goto-char (point-min))
     (display-buffer (current-buffer))))
 
+(defun http-urlencode-alist (params)
+  "Generate an url query from PARAMS alist."
+  (url-build-query-string (cl-loop for (k . v) in params collect (list k v))))
+
 (defun http-prettify-text (text object)
   "Prettify using TEXT using calling OBJECT in a temporal buffer."
   (if (not (functionp object))
@@ -352,8 +356,8 @@ Return a fontified copy of TEXT."
 Return a list of the form: \(URL TYPE PARAMS DATA HEADERS\)"
   (interactive)
   (let* ((start (http-start-definition))
-         (type (match-string 1))
-         (endpoint (match-string 2))
+         (type (match-string-no-properties 1))
+         (endpoint (match-string-no-properties 2))
          (url (if (and http-hostname (not (string-match-p url-nonrelative-link endpoint)))
                   (url-expand-file-name endpoint http-hostname)
                 endpoint))
@@ -362,10 +366,28 @@ Return a list of the form: \(URL TYPE PARAMS DATA HEADERS\)"
     (cl-destructuring-bind (path . query)
         (url-path-and-query urlobj)
       (let ((params (and query (http-query-alist query))))
-        ;; XXX: remove the query string to make it compatible with `request.el'
+        ;; XXX: remove the query string to make it compatible with `request'
         (setf (url-filename urlobj) path)
         (cl-multiple-value-bind (headers data) (http-capture-headers-and-body start end)
           (list (url-recreate-url urlobj) type params data headers))))))
+
+;;;###autoload
+(defun http-curl-command ()
+  "Kill current http request as curl command."
+  (interactive)
+  (cl-multiple-value-bind (url type params data headers)
+      (http-capture)
+    (and params
+         (setq url (concat url (if (string-match-p "\\?" url) "&" "?") (http-urlencode-alist params))))
+    (let* ((args (append
+                  (list "curl" "-X" type)
+                  (and headers (cl-loop for (k . v) in headers
+                                        collect "--header"
+                                        collect (format "%s: %s" k v)))
+                  (and data (list "--data-binary" data))
+                  (list url)))
+           (command (combine-and-quote-strings args)))
+      (kill-new (message "%s" command)))))
 
 ;;;###autoload
 (defun http-process (&optional sync)
@@ -404,6 +426,7 @@ If SYNC is non-nil executes the request synchronously."
 (defvar http-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "C-c C-c") 'http-process)
+    (define-key map (kbd "C-c C-u") 'http-curl-command)
     (define-key map (kbd "C-c C-n") 'outline-next-heading)
     (define-key map (kbd "C-c C-p") 'outline-previous-heading)
     (define-key map (kbd "C-c C-t") 'outline-toggle-children)
