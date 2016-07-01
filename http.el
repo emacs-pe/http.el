@@ -146,6 +146,12 @@
   :safe 'booleanp
   :group 'http)
 
+(defcustom http-default-directory nil
+  "Default directory for HTTP requests."
+  :type '(choice (const nil) string)
+  :safe #'stringp
+  :group 'http)
+
 (defcustom http-fallback-comment-start "//"
   "Fallback string used as `comment-start'.
 
@@ -362,22 +368,23 @@ Return a list of the form: \(URL TYPE PARAMS DATA HEADERS\)"
           (list (url-recreate-url urlobj) type params data headers))))))
 
 ;;;###autoload
-(defun http-process (&optional arg)
+(defun http-process (&optional sync)
   "Process a http request.
 
-If ARG is non-nil executes the request synchronously."
+If SYNC is non-nil executes the request synchronously."
   (interactive "P")
   (cl-multiple-value-bind (url type params data headers)
       (http-capture)
-    (request url
-             :type type
-             :params params
-             :data data
-             :headers headers
-             :sync arg
-             :parser 'buffer-string
-             :success 'http-callback
-             :error 'http-callback)))
+    (let ((default-directory (or http-default-directory default-directory)))
+      (request url
+               :type type
+               :params params
+               :data data
+               :headers headers
+               :sync sync
+               :parser 'buffer-string
+               :success 'http-callback
+               :error 'http-callback))))
 
 (defvar http-mode-syntax-table
   (let ((table (make-syntax-table)))
