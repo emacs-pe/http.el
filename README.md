@@ -3,7 +3,7 @@
 *Author:* Mario Rodas <marsam@users.noreply.github.com><br>
 *Version:* 0.0.1<br>
 
-`http` provides an easy way to interact with the HTTP protocol.
+`http.el` provides an easy way to interact with the HTTP protocol.
 
 ## Usage
 
@@ -80,10 +80,6 @@ arguments.  Examples:
 [restclient.el]: https://github.com/pashky/restclient.el "HTTP REST client tool for Emacs"
 [json-mode]: https://github.com/joshwnj/json-mode "Major mode for editing JSON files with Emacs"
 [json-reformat]: https://github.com/gongo/json-reformat "Reformat tool for JSON"
-
-## TODO
-
-+ [ ] Add code block support for org-mode
 
 
 ---
