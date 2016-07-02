@@ -130,6 +130,12 @@
   :type 'string
   :group 'http)
 
+(defcustom http-timeout nil
+  "Default request timeout in second."
+  :type '(choice (integer :tag "Http timeout seconds")
+                 (boolean :tag "No timeout" nil))
+  :group 'http)
+
 (defcustom http-show-response-headers t
   "Show response headers."
   :type 'boolean
@@ -405,6 +411,7 @@ If SYNC is non-nil executes the request synchronously."
                :headers headers
                :sync sync
                :parser 'buffer-string
+               :timeout http-timeout
                :success 'http-callback
                :error 'http-callback))))
 
