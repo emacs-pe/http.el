@@ -362,11 +362,12 @@ Return a fontified copy of TEXT."
   "Capture a http request.
 
 Return a list of the form: \(URL TYPE PARAMS DATA HEADERS\)"
-  (interactive)
   (let* ((start (http-start-definition))
          (type (match-string-no-properties 1))
          (endpoint (match-string-no-properties 2))
          (url (if (and http-hostname (not (string-match-p url-nonrelative-link endpoint)))
+                  ;; FIXME: endpoint needs to be escaped here, else
+                  ;;        `url-expand-file-name' strips whitespaces
                   (url-expand-file-name endpoint http-hostname)
                 endpoint))
          (urlobj (url-generic-parse-url url))
