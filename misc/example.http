@@ -46,6 +46,7 @@ Content-Type: application/json
 POST https://api.github.com/gists
 Accept: application/vnd.github.v3+json
 User-Agent: Emacs24
+Content-Type: application/json
 
 {
   "description": "test",
@@ -59,6 +60,7 @@ User-Agent: Emacs24
 
 # Indexing a document to Elasticsearch
 PUT http://localhost:9200/megacorp/employee/1?pretty
+Content-Type: application/json
 
 {
   "first_name": "John",
