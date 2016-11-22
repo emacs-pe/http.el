@@ -319,6 +319,29 @@ Used to fontify the response buffer and comment the response headers.")
   (or (assoc-default (assoc-default "content-type" headers) http-content-type-mode-alist)
       'normal-mode))
 
+(defun http-in-request-line-p (&optional pos)
+  "Whether current point POS is at the request line."
+  (save-excursion
+    (and pos (goto-char pos))
+    (beginning-of-line)
+    (looking-at http-request-line-regexp)))
+
+(defun http-in-headers-line-p (&optional pos)
+  "Whether current point POS is at the request headers line."
+  (save-excursion
+    (and pos (goto-char pos))
+    (beginning-of-line)
+    (looking-at http-header-regexp)))
+
+(defun http-indent-line ()
+  "Indent current line as http mode."
+  (interactive)
+  (if (or (http-in-request-line-p) (http-in-headers-line-p))
+      (indent-line-to 0)
+    (beginning-of-line)
+    (skip-chars-forward " \t")
+    (indent-relative 'first-only)))
+
 ;; Stolen from `ansible-doc'.
 (defun http-fontify-text (text mode)
   "Add `font-lock-face' properties to TEXT using MODE.
@@ -464,6 +487,7 @@ If SYNC is non-nil executes the request synchronously."
   (setq-local comment-start-skip "#+\\s-*")
   (setq-local beginning-of-defun-function #'http-nav-beginning-of-defun)
   (setq-local end-of-defun-function #'http-nav-end-of-defun)
+  (setq-local indent-line-function 'http-indent-line)
   (setq font-lock-defaults '(http-font-lock-keywords))
   (setq outline-regexp http-mode-outline-regexp)
   (setq outline-heading-alist http-mode-outline-regexp-alist)
