@@ -179,7 +179,7 @@ Used only when was not possible to guess a response content-type."
   (mapcar (lambda (method) (cons method 1)) http-methods-list))
 
 (defconst http-request-line-regexp
-  (rx-to-string `(: line-start
+  (rx-to-string `(: line-start (* space)
                     (group (or ,@http-methods-list))
                     (+ space)
                     (group (+ not-newline))
@@ -194,7 +194,7 @@ Used only when was not possible to guess a response content-type."
           http-methods-list))
 
 (defconst http-header-regexp
-  (rx line-start (group (+ (in "_-" alnum))) ":" (* space) (group (+ not-newline)) line-end))
+  (rx line-start (* space) (group (+ (in "_-" alnum))) ":" (* space) (group (+ not-newline)) line-end))
 
 (defconst http-header-body-sep-regexp
   (rx line-start (* blank) line-end))
