@@ -336,11 +336,7 @@ Used to fontify the response buffer and comment the response headers.")
 (defun http-indent-line ()
   "Indent current line as http mode."
   (interactive)
-  (if (or (http-in-request-line-p) (http-in-headers-line-p))
-      (indent-line-to 0)
-    (beginning-of-line)
-    (skip-chars-forward " \t")
-    (indent-relative 'first-only)))
+  (and (or (http-in-request-line-p) (http-in-headers-line-p)) (indent-line-to 0)))
 
 ;; Stolen from `ansible-doc'.
 (defun http-fontify-text (text mode)
