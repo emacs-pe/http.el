@@ -463,10 +463,10 @@ If SYNC is non-nil executes the request synchronously."
 (defvar http-font-lock-keywords
   `((,http-request-line-regexp
      (1 font-lock-keyword-face)
-     (2 font-lock-function-name-face))
+     (2 font-lock-function-name-face t))
     (,http-header-regexp
      (1 font-lock-variable-name-face)
-     (2 font-lock-string-face))))
+     (2 font-lock-string-face t))))
 
 (defvar http-mode-map
   (let ((map (make-sparse-keymap)))
