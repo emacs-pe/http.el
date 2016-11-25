@@ -39,6 +39,9 @@ Content-Type: application/json
   "foo": "bar"
 }
 
+# You can press "C-'" in a request to edit the body in a indirect buffer with a
+# mode based in the request content-type header.
+
 ## Extra Examples:
 
 # Creating a gist:
@@ -74,7 +77,7 @@ Content-Type: application/json
 }
 
 # Elasticsearch Bulk Indexing
-# http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/docs-bulk.html
+# https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-bulk.html
 POST http://localhost:9200/_bulk?pretty
 
 { "index" : { "_index" : "test", "_type" : "type1", "_id" : "1" } }
@@ -86,6 +89,6 @@ POST http://localhost:9200/_bulk?pretty
 { "doc" : {"field2" : "value2"} }
 
 # Elasticsearch cat apis
-# http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/cat.html
+# https://www.elastic.co/guide/en/elasticsearch/reference/current/cat.html
 GET http://localhost:9200/_cat/indices?v
 GET http://localhost:9200/_cat/health?v
