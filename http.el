@@ -200,20 +200,21 @@ Used only when was not possible to guess a response content-type."
   (rx line-start (* blank) line-end))
 
 (defvar http-content-type-mode-alist
-  '(("text/xml" . xml-mode)
-    ("application/xml" . xml-mode)
-    ("application/atom+xml" . xml-mode)
-    ("application/atomcat+xml" . xml-mode)
+  '(("text/css"                 . css-mode)
+    ("text/xml"                 . xml-mode)
+    ("application/xml"          . xml-mode)
+    ("application/atom+xml"     . xml-mode)
+    ("application/atomcat+xml"  . xml-mode)
     ("application/x-javascript" . js-mode)
-    ("application/json" . js-mode)
-    ("text/javascript" . js-mode)
-    ("text/html" . html-mode)
-    ("text/plain" . text-mode)
-    ("image/gif" . image-mode)
-    ("image/png" . image-mode)
-    ("image/jpeg" . image-mode)
-    ("image/x-icon" . image-mode)
-    ("image/svg+xml" . image-mode))
+    ("application/json"         . js-mode)
+    ("text/javascript"          . js-mode)
+    ("text/html"                . html-mode)
+    ("text/plain"               . text-mode)
+    ("image/gif"                . image-mode)
+    ("image/png"                . image-mode)
+    ("image/jpeg"               . image-mode)
+    ("image/x-icon"             . image-mode)
+    ("image/svg+xml"            . image-mode))
   "Mapping between 'content-type' and a Emacs mode.
 
 Used to fontify the response buffer and comment the response headers.")
@@ -322,8 +323,9 @@ Used to fontify the response buffer and comment the response headers.")
 
 (defun http-mode-from-headers (headers)
   "Return a major mode from HEADERS based on its content-type."
-  (or (assoc-default (assoc-default "content-type" headers) http-content-type-mode-alist)
-      'normal-mode))
+  (cl-multiple-value-bind (ctype _attrs)
+      (rfc2231-parse-string (or (assoc-default "content-type" headers) ""))
+    (or (assoc-default ctype http-content-type-mode-alist) #'normal-mode)))
 
 (defun http-in-request-line-p (&optional pos)
   "Whether current point POS is at the request line."
