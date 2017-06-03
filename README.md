@@ -25,7 +25,7 @@ well should show an buffer when the response of the http request:
 
 ![http.el screenshot](misc/screenshot.png)
 
-More examples are included in file [misc/example.txt](misc/example.txt)
+More examples are included in file [misc/example.txt](misc/example.http)
 
 ## Customization
 
@@ -71,10 +71,10 @@ arguments.  Examples:
 + [restclient.el][]: HTTP REST client tool for Emacs.  You can use both
   projects indistinctly, the main differences between both are:
 
-             | `restclient.el`   | `http.el`
-  ---------- | ----------------- | -------------
-  backend    | `url.el`          | `request.el`
-  variables  | yes               | no
+  |            | `restclient.el`   | `http.el`     |
+  | ---------- | ----------------- | ------------- |
+  | backend    | `url.el`          | `request.el`  |
+  | variables  | yes               | no            |
 
 [httprepl.el]: https://github.com/gregsexton/httprepl.el "An HTTP REPL for Emacs"
 [restclient.el]: https://github.com/pashky/restclient.el "HTTP REST client tool for Emacs"
