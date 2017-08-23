@@ -323,24 +323,22 @@ Used to fontify the response buffer and comment the response headers.")
       (rfc2231-parse-string (or (assoc-default "content-type" headers) ""))
     (or (assoc-default ctype http-content-type-mode-alist) #'normal-mode)))
 
-(defun http-in-request-line-p (&optional pos)
-  "Whether current point POS is at the request line."
+(defun http-in-context (&optional pos)
+  "Return the context of the point POS."
   (save-excursion
     (and pos (goto-char pos))
-    (beginning-of-line)
-    (looking-at http-request-line-regexp)))
-
-(defun http-in-headers-line-p (&optional pos)
-  "Whether current point POS is at the request headers line."
-  (save-excursion
-    (and pos (goto-char pos))
-    (beginning-of-line)
-    (looking-at http-header-regexp)))
+    (forward-line 0)
+    (cond
+     ((looking-at-p http-header-regexp)        'header)
+     ((looking-at-p http-request-line-regexp)  'request)
+     ((looking-at-p "^[ \t]*#")                'comment)
+     (t                                        'body))))
 
 (defun http-indent-line ()
   "Indent current line as http mode."
   (interactive)
-  (and (or (http-in-request-line-p) (http-in-headers-line-p)) (indent-line-to 0)))
+  (cl-case (http-in-context)
+    ((header request comment) (indent-line-to 0))))
 
 ;; Stolen from `ansible-doc'.
 (defun http-fontify-text (text mode)
