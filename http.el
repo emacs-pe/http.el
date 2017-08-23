@@ -284,15 +284,14 @@ Used to fontify the response buffer and comment the response headers.")
               (insert-image image))
           (when (stringp data)
             (setq data (decode-coding-string data (or coding-system 'utf-8)))
-            (let* ((text (if http-prettify-response
-                             (condition-case err
-                                 (http-prettify-text data pretty-callback)
-                               (error
-                                (message "Error while prettifying response: %S" err)
-                                data))
-                           data))
-                   (fontified (http-fontify-text text guessed-mode)))
-              (insert fontified)))))
+            (let ((text (or (and http-prettify-response
+                                 (fboundp pretty-callback)
+                                 (with-demoted-errors "Error while prettifying: %S"
+                                   (http-prettify-text data pretty-callback)))
+                            data)))
+              (insert (if (fboundp guessed-mode)
+                          (http-fontify-text text guessed-mode)
+                        text))))))
       (when http-show-response-headers
         (goto-char (if http-show-response-headers-top (point-min) (point-max)))
         (or http-show-response-headers-top (insert "\n"))
@@ -313,13 +312,10 @@ Used to fontify the response buffer and comment the response headers.")
 
 (defun http-prettify-text (text object)
   "Prettify using TEXT using calling OBJECT in a temporal buffer."
-  (if (not (functionp object))
-      text
-    (with-temp-buffer
-      (erase-buffer)
-      (insert text)
-      (funcall object)
-      (buffer-string))))
+  (with-temp-buffer
+    (insert text)
+    (funcall object)
+    (buffer-string)))
 
 (defun http-mode-from-headers (headers)
   "Return a major mode from HEADERS based on its content-type."
@@ -352,29 +348,25 @@ Used to fontify the response buffer and comment the response headers.")
 
 Return a fontified copy of TEXT."
   ;; Graciously inspired by http://emacs.stackexchange.com/a/5408/227
-  (if (not (fboundp mode))
-      text
-    (with-temp-buffer
-      (erase-buffer)
-      (insert text)
-      ;; Run mode without any hooks
-      (delay-mode-hooks
-        (funcall mode)
-        (font-lock-mode))
-      (if (fboundp 'font-lock-ensure)
-          (font-lock-ensure)
-        (with-no-warnings
-          ;; Suppress warning about non-interactive use of
-          ;; `font-lock-fontify-buffer' in Emacs 25.
-          (font-lock-fontify-buffer)))
-      ;; Convert `face' to `font-lock-face' to play nicely with font lock
-      (goto-char (point-min))
-      (while (not (eobp))
-        (let ((pos (point)))
-          (goto-char (next-single-property-change pos 'face nil (point-max)))
-          (put-text-property pos (point) 'font-lock-face
-                             (get-text-property pos 'face))))
-      (buffer-string))))
+  (with-temp-buffer
+    (insert text)
+    (delay-mode-hooks                   ; Run mode without any hooks
+      (funcall mode)
+      (font-lock-mode))
+    (if (fboundp 'font-lock-ensure)
+        (font-lock-ensure)
+      (with-no-warnings
+        ;; Suppress warning about non-interactive use of
+        ;; `font-lock-fontify-buffer' in Emacs 25.
+        (font-lock-fontify-buffer)))
+    ;; Convert `face' to `font-lock-face' to play nicely with font lock
+    (goto-char (point-min))
+    (while (not (eobp))
+      (let ((pos (point)))
+        (goto-char (next-single-property-change pos 'face nil (point-max)))
+        (put-text-property pos (point) 'font-lock-face
+                           (get-text-property pos 'face))))
+    (buffer-string)))
 
 (defun http-nav-beginning-of-defun ()
   "Move point to the beginning of a HTTP request definition."
