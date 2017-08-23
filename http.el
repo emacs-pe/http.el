@@ -168,6 +168,8 @@ Used only when was not possible to guess a response content-type."
 ;;;###autoload
 (put 'http-hostname 'safe-local-variable #'stringp)
 
+(define-error 'http-format-error "Unknown http format error")
+
 (defvar http-methods-list
   '("GET" "POST" "DELETE" "PUT" "HEAD" "OPTIONS" "PATCH")
   "List of http methods.")
@@ -198,6 +200,9 @@ Used only when was not possible to guess a response content-type."
 
 (defconst http-header-body-sep-regexp
   (rx line-start (* blank) line-end))
+
+(defconst http-variable-decl-regexp
+  (rx line-start (* space) "#+" (group (+ (in "_-" alnum))) ":" (* space) (group (+ not-newline))))
 
 (defvar http-content-type-mode-alist
   '(("text/css"                 . css-mode)
@@ -317,6 +322,30 @@ Used to fontify the response buffer and comment the response headers.")
     (funcall object)
     (buffer-string)))
 
+(defun http-collect-variables (&optional limit)
+  "Collect variable declarations before current point until LIMIT."
+  (save-excursion
+    (cl-loop while (re-search-backward http-variable-decl-regexp limit 'no-error)
+             collect (cons (match-string-no-properties 1) (match-string-no-properties 2)))))
+
+(defun http-string-format (template &optional extra)
+  "Format TEMPLATE with the function and EXTRA."
+  (let ((saved-match-data (match-data)))
+    (unwind-protect
+        (replace-regexp-in-string
+         ":\\([-_[:alnum:]]+\\)"
+         (lambda (md)
+           (let ((var (match-string 1 md))
+                 (replacer-match-data (match-data)))
+             (unwind-protect
+                 (let ((value (assoc-default var extra)))
+                   (if value (format "%s" value) (signal 'http-format-error md)))
+               (set-match-data replacer-match-data))))
+         template
+         ;; Need literal to make sure it works
+         t t)
+      (set-match-data saved-match-data))))
+
 (defun http-mode-from-headers (headers)
   "Return a major mode from HEADERS based on its content-type."
   (cl-multiple-value-bind (ctype _attrs)
@@ -331,6 +360,7 @@ Used to fontify the response buffer and comment the response headers.")
     (cond
      ((looking-at-p http-header-regexp)        'header)
      ((looking-at-p http-request-line-regexp)  'request)
+     ((looking-at-p http-variable-decl-regexp) 'variable)
      ((looking-at-p "^[ \t]*#")                'comment)
      (t                                        'body))))
 
@@ -338,7 +368,7 @@ Used to fontify the response buffer and comment the response headers.")
   "Indent current line as http mode."
   (interactive)
   (cl-case (http-in-context)
-    ((header request comment) (indent-line-to 0))))
+    ((header request variable comment) (indent-line-to 0))))
 
 ;; Stolen from `ansible-doc'.
 (defun http-fontify-text (text mode)
@@ -379,9 +409,10 @@ Return a fontified copy of TEXT."
   "Capture a http request.
 
 Return a list of the form: \(URL TYPE PARAMS DATA HEADERS\)"
-  (let* ((start (http-start-definition))
+  (let* ((vars (http-collect-variables))
+         (start (http-start-definition))
          (type (match-string-no-properties 1))
-         (endpoint (match-string-no-properties 2))
+         (endpoint (http-string-format (match-string-no-properties 2) vars))
          (url (if (and http-hostname (not (string-match-p url-nonrelative-link endpoint)))
                   ;; FIXME: endpoint needs to be escaped here, else
                   ;;        `url-expand-file-name' strips whitespaces
@@ -394,7 +425,12 @@ Return a list of the form: \(URL TYPE PARAMS DATA HEADERS\)"
       (let ((params (and query (http-query-alist query))))
         ;; XXX: remove the query string to make it compatible with `request'
         (setf (url-filename urlobj) path)
-        (cl-multiple-value-bind (headers data) (http-capture-headers-and-body start end)
+        (cl-multiple-value-bind (headers data)
+            ;; TODO: cleanup this
+            (let ((data (http-string-format (buffer-substring-no-properties start end) vars)))
+              (with-temp-buffer
+                (insert data)
+                (http-capture-headers-and-body (point-min) (point-max))))
           (list (url-recreate-url urlobj) type params data headers))))))
 
 ;;;###autoload
