@@ -202,7 +202,7 @@ Used only when was not possible to guess a response content-type."
   (rx line-start (* blank) line-end))
 
 (defconst http-variable-decl-regexp
-  (rx line-start (* space) "#+" (group (+ (in "_-" alnum))) ":" (* space) (group (+ not-newline))))
+  (rx line-start (* space) "#+" (group alpha (* (in "_-" alnum))) ":" (* space) (group (+ not-newline))))
 
 (defvar http-content-type-mode-alist
   '(("text/css"                 . css-mode)
@@ -333,7 +333,7 @@ Used to fontify the response buffer and comment the response headers.")
   (let ((saved-match-data (match-data)))
     (unwind-protect
         (replace-regexp-in-string
-         ":\\([-_[:alnum:]]+\\)"
+         ":\\([[:alpha:]][-_[:alnum:]]*\\)"
          (lambda (md)
            (let ((var (match-string 1 md))
                  (replacer-match-data (match-data)))
